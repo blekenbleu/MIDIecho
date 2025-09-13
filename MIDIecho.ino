@@ -6,6 +6,7 @@
 
 //USBCDC USBserial;
 HardwareSerial USBserial(PA3, PA2);   // RX2, TX2 Black Pill
+
 bool toggle = true, recent = false, received = false, ok = true, echo = true, do_flush = true;
 unsigned long now = 0, then = 0, wait;
 long later = 0;
@@ -25,6 +26,8 @@ void setup()
 {
   pinMode(PC13, OUTPUT);    // stm32f411 LED
   MidiUSB.available();
+//HWserial.begin(19200);
+//HWserial.println("MIDI.ino: HWserial begun");
   USBserial.begin(19200);
   USB_Begin();
   LEDb4();
@@ -34,7 +37,7 @@ void setup()
     delay(50);
     LEDb4();
   }
-
+//HWserial.println("MIDI.ino: USB_Running");
   for (wait = 0; !USBserial; wait++)
   {
     // wait for Serial port connection
@@ -124,14 +127,14 @@ void loop()
     {
       USBserial.print("50 msec recent timeout; later = "); USBserial.print(later);
       USBserial.print(";  count = "); USBserial.println(count);
-      rx.byte1 = 0xB3;				// not seen until 50 <= later
-      controlChange(value);
+      rx.byte1 = 0xB3;				// channel 4 not seen until 50 <= later
+      MidiUSB.sendMIDI(rx);
       recent = false;
     }
     then = millis();
   } else if (millis() > (then + 10000)) {
     USBserial.println("10 second timeout; sending channel 5");
-    rx.byte1 = 0xB4;              // rarely seen
+    rx.byte1 = 0xB4;              // channel 5 rarely seen (coinciding with input)
     controlChange(value);
     then = millis();
   }
