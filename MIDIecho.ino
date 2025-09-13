@@ -4,11 +4,12 @@
 #include "MIDIUSB.h"
 #include "USBCDC.h"
 
-//USBCDC USBSerial;
-HardwareSerial USBSerial(PA3, PA2);   // RX2, TX2 Black Pill
-bool toggle = true, recent = false, received = false, ok = true, echo = true;
+//USBCDC USBserial;
+HardwareSerial USBserial(PA3, PA2);   // RX2, TX2 Black Pill
+bool toggle = true, recent = false, received = false, ok = true, echo = true, do_flush = true;
 unsigned long now = 0, then = 0, wait;
 long later = 0;
+uint8_t count = 1;
 char hex[20];
 uint8_t value = 50;
 midiEventPacket_t rx; // https://docs.arduino.cc/libraries/midiusb/
@@ -24,7 +25,7 @@ void setup()
 {
   pinMode(PC13, OUTPUT);    // stm32f411 LED
   MidiUSB.available();
-  USBSerial.begin(9600);
+  USBserial.begin(19200);
   USB_Begin();
   LEDb4();
   while (!USB_Running())
@@ -34,7 +35,7 @@ void setup()
     LEDb4();
   }
 
-  for (wait = 0; !USBSerial; wait++)
+  for (wait = 0; !USBserial; wait++)
   {
     // wait for Serial port connection
     delay(500);    // syncopated blink
@@ -45,8 +46,11 @@ void setup()
     LEDb4();
   }
 
-  USBSerial.print("\r\nMIDI.ino connect;  wait count "); USBSerial.print(wait);
-  USBSerial.println(echo ? ";  echo on" : ";  no echo");
+  USBserial.print("\r\nMIDI.ino connect;  count = ");  USBserial.print(count);
+  USBserial.print(";  delay = ");  USBserial.print(later);
+  if (do_flush)
+    USBserial.print(";  do_flush");
+  USBserial.println(echo ? ";  echo on" : ";  no echo");
   wait = 0;
 }
 
@@ -54,56 +58,58 @@ void setup()
 // Parameter 1 (byte1) is the event type, combined with the channel.
 // Parameter 2 (byte2) is the control number number (0-119).
 // Parameter 3 (byte3) is the control value (0-127).
-void controlChange(byte value) {
-  rx.byte3 = value;
+void controlChange(int value) {
+  rx.byte3 = (byte)(127 & value);
   MidiUSB.sendMIDI(rx);
 //MidiUSB.flush();
 } 
 
 uint8_t i = 0;
-void do_echo()
+void do_echo(uint8_t b)
 {
-  if (0 < i && millis() > then + later)
-  {
-    i = 0;
-//  USBSerial.println("do_echo");
-    rx.byte1 = 0xB1;
-    rx.byte3 = 51;
-    MidiUSB.sendMIDI(rx);
-//  controlChange(17);
-//  controlChange(34);	// sometimes breaks
-//  controlChange(68);  // often breaks
-//  controlChange(85);	// always breaks
-//  controlChange(102);
-//  controlChange(119);
+//USBserial.println("do_echo");
+  rx.byte1 = b;
+  for (uint8_t c = 1; c <= count; c++)
+    controlChange(17 * c);
+  if (do_flush)
     MidiUSB.flush();		// seemingly no impact..?
-  }
 }
 
 void loop()
 {
 //if (MidiUSB.available())		// seemingly never true..?
   {
-//  USBSerial.println("MidiUSB.available");
-    for (rx = MidiUSB.read(); 0 != rx.header; rx = MidiUSB.read())
+//  USBserial.println("MidiUSB.available");
+    rx = MidiUSB.read();
+    if (0 != rx.header)
     {
       then = millis();
       recent = received = true;
-      i = 1;
+      i++;
       if (ok && echo)
       {
         sprintf(hex, "%02X%02X%02X%02X\r\n", rx.header, rx.byte1,
                 rx.byte2, rx.byte3);
         size_t l = strlen(hex);
-        if (l < USBSerial.availableForWrite())	// MIDI faster than 9600
-          ok = (l == USBSerial.write(hex, l));
-//      else ok = false;
+        if (l < USBserial.availableForWrite())	// MIDI faster than 19200
+          ok = (l == USBserial.write(hex, l));
       }
+    }
+
+    if (7 < i)
+    {
+      i = 0;
+      do_echo(0xB1);  
     }
   }
 
-  if (echo)
-    do_echo();
+  if (echo && 4 == i)
+  {
+    if (0 < later)
+      delay(later);
+    do_echo(0xB2);
+  }
+
   if (recent)
     wait = 100;
   else if (received)
@@ -112,47 +118,60 @@ void loop()
   if (millis() > now + wait)
     LEDb4();
 
-  if (recent && (millis() > (then + 4000)))
+  if (recent && (millis() > (then + 50)))
   {
     if (received)
     {
-      value &= 127;
-      USBSerial.print("recent timeout; sending "); USBSerial.println(value);
-      rx.byte1 = 0xB2;				// not seen
+      USBserial.print("50 msec recent timeout; later = "); USBserial.print(later);
+      USBserial.print(";  count = "); USBserial.println(count);
+      rx.byte1 = 0xB3;				// not seen until 50 <= later
       controlChange(value);
       recent = false;
     }
     then = millis();
+  } else if (millis() > (then + 10000)) {
+    USBserial.println("10 second timeout; sending channel 5");
+    rx.byte1 = 0xB4;              // rarely seen
+    controlChange(value);
+    then = millis();
   }
 
-  if (0 < USBSerial.available())  // keypad echo control
+  if (0 < USBserial.available())  // keypad echo control
   {
-    value = USBSerial.read();
-    USBSerial.print(value);
+    USBserial.print(value = USBserial.read());
     if (32 == value) // space
     {
       echo = !echo;
-      USBSerial.println(echo ? "; echo on" : "; no echo");
-    } else {					// NUM lock
+      USBserial.println(echo ? "; echo on" : "; no echo");
+    } else if (50 == value)	{ // two
+      do_flush = !do_flush;
+      USBserial.println(do_flush ? "; do_flush" : "; don't flush");
+    } else {				// NUM lock
       bool changed = true;
-      if (43 == value)	// plus
-        later += 5;
-      else if (126 == value) // dot
-        later -= 1;
+      if (43 == value)		// plus
+        later += 10;
       else if (45 == value) // minus
-        later -= 4;
-      else if (126 == value) // one
-        later += 1;
+        later -= 8;
       else if (48 == value) // zero
         later = 0;
-       else if (0 > later)
+      else changed = false;
+      if (0 > later)
          later = 0;
-       else changed = false;
-       if (changed)
-         USBSerial.print("; later = "); USBSerial.println(later);
-     }
-     recent = true;
-//  MidiUSB.flush();
+      if (changed)
+         USBserial.print("; delay = "); USBserial.println(later);
+
+      changed = true;
+      if (49 == value) 		// one
+        count += 1;
+      else if (46 == value)	// dot
+        count -=1 ;
+      else changed = false;
+      if (0 > count)
+        count = 0;
+      if (changed)
+        USBserial.print("; count = "); USBserial.println(count);
+    }
+    recent = true;
     then = millis();
   }
 }

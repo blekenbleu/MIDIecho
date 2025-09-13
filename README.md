@@ -20,7 +20,7 @@ USBDeview shows `COM3` "Drive Letter" while only MIDI is configured...
 ![](USBDeview.png)  
 [USB Device Tree View report](UDBdevTreeView.txt) 
 
-**`MidiUSB.sendMIDI()` works *only* immediately after `MidiUSB.available()`**
+**`MidiUSB.sendMIDI()` works *only* during `MidiUSB.read()` with non-0 `rx.header`**
 
 Must reopen devices in MIDI-OX after resetting/reloading Black Pill.
 
@@ -33,13 +33,22 @@ Windows 11 is unhappy enough that DFU subsequently fails;  must use ST-Link.
 - `MidiUSB.available()` appears to never return non-zero.
 - MIDI-OX sees CCs echoed (by MIDIecho) when MIDIecho `MidiUSB.read()`s them...!
    - is MIDI thru configured?
-- only `sendMIDI` packets (CCs) <b>immediately</b> after `read()` are seen by MIDI-OX
+- only `sendMIDI` packets (CCs) <b>during</b> `MidiUSB.read()` are seen by MIDI-OX
 - `MidiUSB.flush()` seemingly no effect..?
 
-### Serial terminal control of MIDI echo
+### MIDIecho serial terminal control
+`MIDIecho.ino` *always* writes a Channel 4 CC 100 milliseconds after most recent `MidiUSB.read()`;  
+`do_echo()` writes `count` Channel 2 CCs immediately after every 8th `MidiUSB.read()`,  
+ &emsp; then another `count` Channel 3 CCs after `delay(later)`  
+By pausing processing, `do_echo()` *with long enough* 'delay(later)` enables Channel 3 CC..   
+
+ &emsp; (NUM pad) Keystroke handling:
 - [space] toggles echo
-- [+] increases delay 5 msec
-- [-] decreases delay 4 msec
-- [0] sets 0 delay
-- [.] decreases delay 1 msec
-- [1] increases delay 1 msec
+- [2] toggles `MidiUSB.flush()`  
+- [+] increases later 10 msec
+- [-] decreases later 8 msec
+- [0] sets later = 0
+- [.] decrements count
+- [1] increments count
+
+Slider move echo for count=3 and delay(later=52) *eventually* dies.
