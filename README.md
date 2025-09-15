@@ -11,7 +11,7 @@ when connected to read from `BLACKPILL_F411CE HID in FS Mode` with e.g. [MidiVie
 MIDI-OX pops up:  
 ![](BlackPillMIDImemory.png)  
 
-**Enhancement wanted**:  *composite* USB device *with separate* `MIDI IN` and `MIDI OUT` devices;  
+**MIDIUSB Enhancement wanted**:  *composite* USB device *with separate* `MIDI IN` and `MIDI OUT` devices;  
 	* these appear to use only 3 endpoints, the same as a single MIDI device with IN and OUT ports.  
 
 Workaround:&nbsp; test both reading and writing via [MIDI-OX](http://www.midiox.com/):
@@ -42,16 +42,13 @@ Simply increasing `USB_CFGBUFFER_LEN` from `128` to `256` or `512` in `USBOption
 
 ### MIDI + HardwareSerial
 `HardwareSerial USBSerial(PA3, PA2);` instead of `USBCDC USBSerial;`
-- `MidiUSB.available()` appears to never return non-zero.
-- `MidiUSB.flush()` seemingly no effect..?
-- `sendMIDI()` [CC] packets <b>are seen only during</b> `MidiUSB.read()`
-	- Channel 1 are CCs from MIDI control surface, routed thru MIDI-OX to Black Pill
-    - Channel 2 are sketch-generated CCs *immediately after* every 8th input CC
-	- Channel 3 are sketch-generated CCs *after* `delay()` for every 8th input CC
-	- Channel 4 are sketch-generated CCs *50 msec after every* input CC
-		- these are **only** seen when Channel 3 delay is *more than 50 msec*,  
-         presumably because `delay()` also delayed `MidiUSB.read()` processing...
-    - Channel 5 are sketch-generated CCs every 10 seconds, but are **not seen**.
+- `MidiUSB.available()` appears to never return non-zero;&nbsp; **should not be used**.
+- channel 0 are echo'ed from nanoKONTROL2
+- Channel 1 are CCs from MIDI control surface, routed thru MIDI-OX to Black Pill
+- Channel 2 are sketch-generated CCs *immediately after* every 8th input CC
+- Channel 3 are sketch-generated CCs *after* `delay()` for every 8th input CC
+- Channel 4 are sketch-generated CCs *50 msec after every* input CC
+- Channel 5 are sketch-generated CCs every 10 seconds
 
 ### MIDIecho serial terminal control
 `MIDIecho.ino` *always* writes a Channel 4 CC 100 milliseconds after most recent `MidiUSB.read()`;  
@@ -60,11 +57,10 @@ Simply increasing `USB_CFGBUFFER_LEN` from `128` to `256` or `512` in `USBOption
 - `do_echo()` *with long enough* 'delay(later)` enables Channel 4 CC..   
 
 **MIDIecho serial terminal (NUM pad) Keystroke handling:**
-- [space] toggles echo
+- [space] toggles echo off/on
 - [2] toggles `MidiUSB.flush()`  
-- [+] increases later 10 msec
-- [-] decreases later 8 msec
-- [0] sets later = 0
-- [.] decrements count
-- [1] increments count
-
+- [+] increases channel 4 `delay(later)` 10 msec
+- [-] decreases channel 4 `delay(later)` 8 msec
+- [0] disables channel 4 `delay(later)`
+- [.] decrements channel 2,3 count
+- [1] increments channel 2.3 count
