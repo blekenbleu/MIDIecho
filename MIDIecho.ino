@@ -80,8 +80,8 @@ void setup()
 // Parameter 1 (byte1) is the event type, combined with the channel.
 // Parameter 2 (byte2) is the control number number (0-119).
 // Parameter 3 (byte3) is the control value (0-127).
-void controlChange(uint8_t b1, int value) {
-  midiEventPacket_t cc = { 0x0B, b1, rx.byte2, (byte)(127 & value) };
+void controlChange(uint8_t b1, uint8_t b3) {
+  midiEventPacket_t cc = { 0x0B, b1, rx.byte2, (uint8_t)(127 & b3) };
   USBserial.print("controlChange: "); slog(cc);  
   MidiUSB.sendMIDI(cc);
   sent = true;
@@ -108,7 +108,7 @@ void slog(midiEventPacket_t m)
     ok = (l == USBserial.write(hex, l));
 }
 
-midiEventPacket_t sx = {0, 0, 0, 0};
+midiEventPacket_t sx = {0x0B, 0, 0, 0};
 void loop()
 {
   midiEventPacket_t rx;
@@ -154,6 +154,7 @@ void loop()
       USBserial.print("500 msec timeout; later = "); USBserial.print(later);
       USBserial.print(";  count = "); USBserial.println(count);
       sx.byte1 = 0xB3;
+      sx.byte3 = value;
       MidiUSB.sendMIDI(sx);
       sent = true;
       USBserial.print("sent "); slog(sx);
@@ -161,8 +162,8 @@ void loop()
       then = millis();
     } else if (millis() > (then + 10000)) {
       USBserial.print("10 second timeout ");
-      value = (127 & (1 + value));
-      controlChange(0xB4, value);		// channel 5
+      value &= 127;
+      controlChange(0xB4, value++);		// channel 5
       then = millis();
     }
     if (do_flush && sent)
