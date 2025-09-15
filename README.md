@@ -11,6 +11,9 @@ when connected to read from `BLACKPILL_F411CE HID in FS Mode` with e.g. [MidiVie
 MIDI-OX pops up:  
 ![](BlackPillMIDImemory.png)  
 
+**Enhancement wanted**:  *composite* USB device *with separate* `MIDI IN` and `MIDI OUT` devices;  
+	* these appear to use only 3 endpoints, the same as a single MIDI device with IN and OUT ports.  
+
 Workaround:&nbsp; test both reading and writing via [MIDI-OX](http://www.midiox.com/):
 - MIDI-OX Options > Devices  
 ![](MIDI-OXdevices.png)
@@ -32,6 +35,9 @@ Workaround:&nbsp; test both reading and writing via [MIDI-OX](http://www.midiox.
 
 ## Composite MIDI + CDC fails
 Merely instancing `USBCDC USBserial;` with `MidiUSB.available();` suffices to kill Black Pill USB...  
+Simply increasing `USB_CFGBUFFER_LEN` from `128` to `256` or `512` in `USBOptions.h` did not fix this;  
+ &emsp; USB Device Tree Viewer reports nothing connected to its hub port.
+
 *Workaround*:&nbsp; use `HardwareSerial` instead of `USBCDC` to sort MIDI.
 
 ### MIDI + HardwareSerial

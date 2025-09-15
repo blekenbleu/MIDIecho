@@ -4,8 +4,17 @@
 #include "MIDIUSB.h"
 #include "USBCDC.h"
 
-//USBCDC USBserial;
+#define TRYCDC 0
+#if TRYCDC
+USBCDC USBserial;
+HardwareSerial HWserial(PA3, PA2);
+#define HWb(a) HWserial.begin(a)
+#define HWp(a) HWserial.println(a)
+#else
 HardwareSerial USBserial(PA3, PA2);   // RX2, TX2 Black Pill
+#define HWb
+#define HWp
+#endif
 
 bool toggle = true, recent = false, received = false, ok = true, echo = true, do_flush = true;
 unsigned long now = 0, then = 0, wait;
@@ -26,8 +35,8 @@ void setup()
 {
   pinMode(PC13, OUTPUT);    // stm32f411 LED
   MidiUSB.available();
-//HWserial.begin(19200);
-//HWserial.println("MIDI.ino: HWserial begun");
+  HWb(19200);
+  HWp("MIDI.ino: HWserial begun");
   USBserial.begin(19200);
   USB_Begin();
   LEDb4();
@@ -37,7 +46,7 @@ void setup()
     delay(50);
     LEDb4();
   }
-//HWserial.println("MIDI.ino: USB_Running");
+  HWp("MIDI.ino: USB_Running");
   for (wait = 0; !USBserial; wait++)
   {
     // wait for Serial port connection
@@ -49,6 +58,8 @@ void setup()
     LEDb4();
   }
 
+  HWp("MIDI.ino: USBCDC connection");
+  
   USBserial.print("\r\nMIDI.ino connect;  count = ");  USBserial.print(count);
   USBserial.print(";  delay = ");  USBserial.print(later);
   if (do_flush)
